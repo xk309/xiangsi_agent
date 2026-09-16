@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 
-from backend.matching import compare_pollutants, evaluate_concentration, compare_weather, select_nonoverlapping, validate_window
+from backend.matching import compare_pollutants, evaluate_concentration, compare_weather, select_nonoverlapping, validate_window, finalize_candidates
 from datetime import date
 
 
@@ -44,6 +44,27 @@ class MatchingTests(unittest.TestCase):
             validate_window(date(2025,1,1),date(2025,1,3),[date(2025,1,1),date(2025,1,3)])
         candidates = [{'history_start_date':date(2025,1,2)}, {'history_start_date':date(2025,1,1)}, {'history_start_date':date(2025,1,5)}]
         self.assertEqual([x['history_start_date'].day for x in select_nonoverlapping(candidates,3)], [2,5])
+
+    def test_seven_day_plateau_and_exact_change_threshold(self):
+        values = np.broadcast_to(np.array([40,43,80,80,43,40,40])[:,None,None],(7,9,4)).copy()
+        result = compare_pollutants(values, values, np.ones((9,4)), np.full((9,4),3.))
+        feature = result['current_features'][0]
+        self.assertEqual(feature['directions'],['STABLE','UP','STABLE','DOWN','STABLE','STABLE'])
+        self.assertEqual(feature['peak_positions'],[3,4])
+        self.assertEqual(feature['pattern'],'先升后降')
+        self.assertEqual(feature['exceedance_days'],2)
+        self.assertEqual(feature['longest_run'],2)
+        self.assertEqual(result['fine_pollutant_score'],100)
+
+    def test_final_rank_is_absent_without_three_valid_reviews(self):
+        candidates = [{'history_start_date':date(2025,1,i),'fine_pollutant_score':80.,'meteorology_score':70.,
+                       'fine_score':76.,'coarse_score':75.,'image_score':90.} for i in range(1,4)]
+        self.assertEqual(finalize_candidates(candidates[:2]),[])
+        self.assertTrue(all('final_rank' not in c for c in candidates))
+        result = finalize_candidates(candidates)
+        self.assertEqual([c['history_start_date'].day for c in result],[1,2,3])
+        self.assertEqual(result[0]['final_score'],80.)
+        self.assertEqual(result[0]['final_rank'],1)
 
 
 if __name__ == '__main__':

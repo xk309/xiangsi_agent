@@ -18,6 +18,8 @@ PRODUCT_TITLES = {'temperature':'2 m temperature (C)','humidity':'2 m relative h
 class WeatherStore:
     def __init__(self, path=None):
         self.path = path or settings.weather_file
+        file_stat = self.path.stat()
+        self.file_signature = (file_stat.st_size,file_stat.st_mtime_ns)
         self.lock = threading.RLock()
         # netCDF4's Windows filename handling is not Unicode-safe; in-memory access preserves the source.
         file_bytes = self.path.read_bytes()

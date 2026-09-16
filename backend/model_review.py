@@ -2,6 +2,7 @@ import base64
 from hashlib import sha256
 import json
 import math
+from datetime import datetime,timezone
 import httpx
 from backend.config import settings
 from backend.database import query,execute,as_json
@@ -73,12 +74,20 @@ days必须按相对日覆盖每一天。分数越高代表越相似，不能输�
     with httpx.Client(timeout=settings.model_timeout_seconds) as client:
         response = client.post(settings.model_base_url+'/chat/completions',json=payload,
                                headers={'Authorization':'Bearer '+settings.model_api_key})
+    try:
+        raw_response = response.json()
+    except ValueError:
+        raw_response = {'unparsed_body':response.text[:20000]}
+    attempt = {'received_at':datetime.now(timezone.utc).isoformat(),'http_status':response.status_code,'response':raw_response}
+    execute('''INSERT INTO match_image_review(cache_key,model_name,request_metadata,raw_response,response_history)
+               VALUES(%s,%s,%s,%s,%s) ON CONFLICT(cache_key) DO UPDATE SET
+               raw_response=EXCLUDED.raw_response,
+               response_history=CASE WHEN match_image_review.response_history='[]'::jsonb
+                   THEN jsonb_build_array(jsonb_build_object('response',match_image_review.raw_response,'legacy',true))
+                   ELSE match_image_review.response_history END || EXCLUDED.response_history''',
+            (cache_key,settings.model_name,as_json(metadata),as_json(raw_response),as_json([attempt])))
     if response.status_code >= 400:
         raise ValueError(f'模型接口返回HTTP {response.status_code}，请核验模型权限、接口兼容性及配额')
-    raw_response = response.json()
-    execute('''INSERT INTO match_image_review(cache_key,model_name,request_metadata,raw_response)
-               VALUES(%s,%s,%s,%s) ON CONFLICT(cache_key) DO UPDATE SET raw_response=EXCLUDED.raw_response''',
-            (cache_key,settings.model_name,as_json(metadata),as_json(raw_response)))
     try:
         text = raw_response['choices'][0]['message']['content'].strip()
         if text.startswith('```'):

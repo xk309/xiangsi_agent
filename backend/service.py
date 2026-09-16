@@ -10,7 +10,7 @@ import numpy as np
 from backend.config import settings
 from backend.database import query,execute,as_json,save_task,save_image,json_default
 from backend.data_source import list_batches,load_inputs,historical_residuals
-from backend.matching import validate_window,rank_windows
+from backend.matching import validate_window,rank_windows,finalize_candidates
 from backend.model_review import review_images
 from backend.weather import WeatherStore,RENDER_VERSION
 
@@ -23,7 +23,10 @@ WARNING = '固定2025数据联调：气象为合成日均场，污染物为时�
 
 def get_weather():
     global weather_store
-    if weather_store is None:
+    file_stat = settings.weather_file.stat()
+    if weather_store is None or weather_store.file_signature != (file_stat.st_size,file_stat.st_mtime_ns):
+        if weather_store is not None:
+            weather_store.dataset.close()
         weather_store = WeatherStore()
     return weather_store
 
@@ -145,10 +148,9 @@ def run_task(task_id,batch,dates,should_review,evidence):
                 candidate['review_error'] = str(error) if isinstance(error,ValueError) else type(error).__name__
             persist_candidates(task_id,candidates)
             update(f'已复核{len(successful)}/{target_count}个候选',40+55*len(successful)/target_count)
-        successful.sort(key=lambda item:(-item['final_score'],-item['fine_score'],-item['coarse_score'],item['history_start_date']))
-        if len(successful) >= 3:
-            for index,candidate in enumerate(successful,1):
-                candidate['final_rank'] = index
+        ranked = finalize_candidates(candidates)
+        if ranked:
+            successful = ranked
             top = successful[0]
             evidence['residuals'] = historical_residuals(batch,dates,top['history_start_date'])
             top['history_forecast_start_time'] = evidence['residuals']['historical_forecast_start_time']

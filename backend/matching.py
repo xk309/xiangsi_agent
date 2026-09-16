@@ -158,6 +158,22 @@ def select_nonoverlapping(ranked_candidates, length, limit=50):
     return selected
 
 
+def finalize_candidates(candidates):
+    successful = []
+    for candidate in candidates:
+        candidate.pop('final_rank',None)
+        image_score = candidate.get('image_score')
+        if image_score is not None and np.isfinite(image_score) and 0 <= image_score <= 100:
+            candidate['final_score'] = .6*candidate['fine_pollutant_score'] + .2*candidate['meteorology_score'] + .2*image_score
+            successful.append(candidate)
+    if len(successful) < 3:
+        return []
+    successful.sort(key=lambda item:(-item['final_score'],-item['fine_score'],-item['coarse_score'],item['history_start_date']))
+    for rank,candidate in enumerate(successful,1):
+        candidate['final_rank'] = rank
+    return successful
+
+
 def calibrate_changes(observations, first_date):
     pairs = [(day, np.abs(observations[day+timedelta(days=1)]-values)) for day, values in observations.items()
              if day+timedelta(days=1) in observations]

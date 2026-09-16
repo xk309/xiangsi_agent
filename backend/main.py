@@ -113,7 +113,7 @@ def image(image_hash:str):
 
 @app.get('/api/reviews/{cache_key}')
 def review_evidence(cache_key:str):
-    rows = query('SELECT model_name,request_metadata,raw_response,validated_review FROM match_image_review WHERE cache_key=%s',(cache_key,))
+    rows = query('SELECT model_name,request_metadata,raw_response,response_history,validated_review FROM match_image_review WHERE cache_key=%s',(cache_key,))
     if not rows:
         raise HTTPException(404,'复核记录不存在')
     return rows[0]

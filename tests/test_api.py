@@ -26,6 +26,10 @@ class ApiTests(unittest.TestCase):
         response = self.client.post('/api/tasks',headers={'Origin':'https://external.example'},json={})
         self.assertEqual(response.status_code,403)
 
+    def test_development_proxy_preserved_host_reaches_input_validation(self):
+        response = self.client.post('/api/tasks',headers={'Origin':'http://localhost:5173','Host':'localhost:5173'},json={})
+        self.assertEqual(response.status_code,422)
+
     def test_missing_task_and_invalid_image(self):
         with patch('backend.main.query',return_value=[]):
             self.assertEqual(self.client.get('/api/tasks/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa').status_code,404)

@@ -23,3 +23,5 @@ CREATE TABLE IF NOT EXISTS match_image_review (
  created_at timestamptz NOT NULL DEFAULT now()
 );
 COMMENT ON TABLE match_image_review IS '气象图多模态原始响应与校验结果；按模型、提示词、日期和输入图哈希缓存';
+ALTER TABLE match_image_review ADD COLUMN IF NOT EXISTS response_history jsonb NOT NULL DEFAULT '[]'::jsonb;
+COMMENT ON COLUMN match_image_review.response_history IS '每次模型调用的响应与HTTP状态，追加保留，重试不覆盖历史';
