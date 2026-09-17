@@ -1,3 +1,5 @@
+import { Fragment } from "react";
+import type { CSSProperties } from "react";
 import type { Images } from "./types";
 export const gridNames = [
   "西北",
@@ -84,6 +86,84 @@ export function LineChart({
         </g>
       ))}
     </svg>
+  );
+}
+
+export type ImageColumn = {
+  label: string;
+  note?: string;
+  caption?: string;
+  isActive?: boolean;
+  images?: Images;
+  onSelect?: () => void;
+};
+
+export function ImageMatrix({
+  columns,
+  onOpen,
+}: {
+  columns: ImageColumn[];
+  onOpen: (url: string) => void;
+}) {
+  return (
+    <div className="image-matrix-wrap">
+      <div
+        className="image-matrix"
+        style={{ "--window-count": columns.length } as CSSProperties}
+      >
+        <div className="image-matrix-corner" aria-hidden="true" />
+        {columns.map((column) => (
+          <div
+            className={`image-matrix-head ${column.isActive ? "active" : ""}`}
+            key={column.label}
+          >
+            {column.onSelect ? (
+              <button
+                className="image-matrix-select"
+                onClick={column.onSelect}
+                aria-label={`查看${column.label}的完整对比结果`}
+              >
+                <strong>{column.label}</strong>
+                {column.note && <span>{column.note}</span>}
+              </button>
+            ) : (
+              <>
+                <strong>{column.label}</strong>
+                {column.note && <span>{column.note}</span>}
+              </>
+            )}
+            {column.caption && <small>{column.caption}</small>}
+          </div>
+        ))}
+        {Object.entries(products).map(([key, title]) => (
+          <Fragment key={key}>
+            <div className="image-matrix-label">{title}</div>
+            {columns.map((column) => {
+              const hash = column.images?.[key];
+              return (
+                <div className="image-matrix-cell" key={column.label + key}>
+                  {hash ? (
+                    <button
+                      className="image-button"
+                      onClick={() => onOpen(`/api/images/${hash}`)}
+                      aria-label={`放大${column.label}${title}`}
+                    >
+                      <img
+                        src={`/api/images/${hash}`}
+                        loading="lazy"
+                        alt={`${column.label}${title}合成气象图`}
+                      />
+                    </button>
+                  ) : (
+                    <div className="image-placeholder">尚未生成</div>
+                  )}
+                </div>
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
+    </div>
   );
 }
 

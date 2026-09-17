@@ -7,17 +7,22 @@ import {
   formatScore,
   LineChart,
   ImageComparison,
+  ImageMatrix,
+  type ImageColumn,
 } from "./visualizations";
 export function CandidateDetails({
   task,
   selected,
   onOpen,
+  onSelectCandidate,
 }: {
   task: Task;
   selected: Candidate;
   onOpen: (url: string) => void;
+  onSelectCandidate?: (historyStartDate: string) => void;
 }) {
   const [detailTab, setDetailTab] = useState("comparison");
+  const [imageView, setImageView] = useState("top3");
   const [pollutant, setPollutant] = useState(0);
   const [grid, setGrid] = useState(4);
   const [relativeDay, setRelativeDay] = useState(0);
@@ -26,6 +31,27 @@ export function CandidateDetails({
   const historicalSeries = selected.historical_values.map(
     (day) => day[grid][pollutant],
   );
+  const rankedCandidates = [...task.candidates]
+    .filter((candidate) => candidate.final_rank)
+    .sort((left, right) => left.final_rank! - right.final_rank!);
+  const imageColumns: ImageColumn[] = [
+    {
+      label: "当前窗口",
+      note: `${task.dates[0]} — ${task.dates[task.dates.length - 1]}`,
+      caption: "本次匹配的预测窗口",
+      images: task.current_images,
+    },
+    ...rankedCandidates.slice(0, 3).map((candidate) => ({
+      label: `Top${candidate.final_rank}`,
+      note: `${candidate.history_start_date} — ${candidate.history_end_date}`,
+      caption: `图像复核 ${formatScore(candidate.image_score)} 分`,
+      isActive: candidate.history_start_date === selected.history_start_date,
+      images: candidate.images,
+      onSelect: onSelectCandidate
+        ? () => onSelectCandidate(candidate.history_start_date)
+        : undefined,
+    })),
+  ];
   return (
     <section className="panel detail-panel">
       <div className="detail-heading">
@@ -263,14 +289,41 @@ export function CandidateDetails({
         </div>
       ) : detailTab === "weather" ? (
         <div className="weather-content">
-          <p className="muted">
-            同类图使用统一范围与色标；点击放大。星号为上海位置。
-          </p>
-          <ImageComparison
-            current={task?.current_images}
-            historical={selected.images}
-            onOpen={onOpen}
-          />
+          <div className="weather-toolbar">
+            <div className="pill-group">
+              {[
+                ["top3", "当前 + Top3 总览"],
+                ["pair", "当前 vs 本候选"],
+              ].map(([key, title]) => (
+                <button
+                  className={imageView === key ? "active" : ""}
+                  key={key}
+                  onClick={() => setImageView(key)}
+                >
+                  {title}
+                </button>
+              ))}
+            </div>
+            <p className="muted">
+              同一行使用统一范围与色标，点击任意图片可放大；星号为上海位置。
+            </p>
+          </div>
+          {imageView === "top3" ? (
+            <>
+              <ImageMatrix columns={imageColumns} onOpen={onOpen} />
+              <p className="muted">
+                {rankedCandidates.length >= 3
+                  ? `已并排展示当前窗口与 Top${Math.min(rankedCandidates.length, 3)} 的历史窗口图片；点击窗口标题可切换到该候选的完整对比。`
+                  : `本次仅 ${rankedCandidates.length} 个候选完成图像复核，未形成完整 Top3。`}
+              </p>
+            </>
+          ) : (
+            <ImageComparison
+              current={task.current_images}
+              historical={selected.images}
+              onOpen={onOpen}
+            />
+          )}
           <div className="table-scroll">
             <table>
               <thead>

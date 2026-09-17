@@ -1022,6 +1022,93 @@ table.data-table td {
   background: #f5f7f1;
   margin: 8px 0;
 }
+.weather-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.weather-toolbar .muted {
+  margin: 0;
+}
+.weather-toolbar .pill-group button {
+  min-width: 0;
+  padding: 0 12px;
+}
+.image-matrix-wrap {
+  overflow-x: auto;
+  margin-top: 14px;
+  padding-bottom: 4px;
+}
+.image-matrix {
+  display: grid;
+  grid-template-columns: 96px repeat(var(--window-count, 2), minmax(230px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.image-matrix-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fafcf8;
+}
+.image-matrix-head.active {
+  border-color: #9fbf8a;
+  background: #f0f7ea;
+  box-shadow: inset 0 0 0 1px #cfe0c0;
+}
+.image-matrix-head strong {
+  font-size: 12px;
+}
+.image-matrix-head span {
+  font-size: 10px;
+  color: #7d8f7b;
+}
+.image-matrix-head small {
+  font-size: 9px;
+  color: #8d9a86;
+}
+.image-matrix-select {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.image-matrix-select:hover strong {
+  color: #2e6e43;
+  text-decoration: underline;
+}
+.image-matrix-label {
+  display: flex;
+  align-items: center;
+  padding: 6px 4px 0;
+  font-size: 11px;
+  color: #6b7d68;
+}
+.image-matrix-cell .image-button {
+  margin: 0;
+}
+.image-matrix-cell img {
+  border-radius: 4px;
+}
+@media (max-width: 980px) {
+  .image-matrix {
+    grid-template-columns: 76px repeat(
+        var(--window-count, 2),
+        minmax(200px, 1fr)
+      );
+  }
+}
 .muted {
   font-size: 11px;
   line-height: 1.9;

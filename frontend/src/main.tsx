@@ -599,6 +599,10 @@ function App() {
                         task={task!}
                         selected={selected}
                         onOpen={setOpenImage}
+                        onSelectCandidate={(historyStartDate) => {
+                          setStage("final");
+                          setSelectedDate(historyStartDate);
+                        }}
                       />
                     )}
                   </div>
