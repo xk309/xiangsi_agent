@@ -2,12 +2,15 @@ from datetime import date
 from hashlib import sha256
 from io import BytesIO
 import threading
+import json
+from pathlib import Path
 import numpy as np
 from netCDF4 import Dataset, num2date
 import matplotlib
 matplotlib.use('Agg')
 from matplotlib.figure import Figure
 from backend.config import settings
+from backend.circulation import classify_circulation, extract_field_features
 
 RENDER_VERSION = 'fixed2025-v1'
 PRODUCTS = ('temperature','humidity','pressure_wind','circulation_500')
@@ -38,6 +41,24 @@ class WeatherStore:
         for day,index in self.date_indices.items():
             if all(np.isfinite(np.ma.filled(self.dataset[name][index],np.nan)).mean() >= .8 for name in expected_units):
                 self.valid_dates.add(day)
+
+    def classify_circulation(self, dates):
+        policy = json.loads(Path(settings.circulation_rules_path).read_text(encoding='utf-8')) if settings.circulation_rules_path else None
+        with self.lock:
+            points = {}
+            for prefix in ('surface', 'upper'):
+                longitude = np.asarray(self.dataset[f'{prefix}_longitude'][:])
+                latitude = np.asarray(self.dataset[f'{prefix}_latitude'][:])
+                points[prefix] = (int(np.argmin(abs(latitude - 31.23))), int(np.argmin(abs(longitude - 121.47))))
+            results = []
+            for day in dates:
+                index = self.date_indices[day]
+                def field(name):
+                    return np.ma.filled(self.dataset[name][index], np.nan)
+                features = extract_field_features(field('MSL') / 100, field('Z500') / 9.80665,
+                    (field('U10M'), field('V10M')), (field('U500'), field('V500')), points['surface'], points['upper'])
+                results.append({'date': str(day), **classify_circulation(features, policy)})
+            return results
 
     def render(self, dates):
         with self.lock:

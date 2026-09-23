@@ -8,7 +8,7 @@ from backend.config import settings
 from backend.database import query,execute,as_json
 from backend.weather import PRODUCTS
 
-PROMPT_VERSION = 'four-fields-v2.1-fixed2025-1'
+PROMPT_VERSION = 'four-fields-v2.1-fixed2025-2-exact-dates'
 
 
 def validate_review(raw, historical_start, length):
@@ -48,6 +48,15 @@ def review_images(current_images,historical_images,historical_start,current_date
                 'history_start_date':str(historical_start),'current_dates':[str(x) for x in current_dates],
                 'historical_dates':[str(x) for x in historical_dates]}
     cache_key = sha256(json.dumps(metadata,sort_keys=True).encode()).hexdigest()
+    image_rows = {}
+    for side, images, dates in [('当前', current_images, current_dates), ('历史', historical_images, historical_dates)]:
+        for product in PRODUCTS:
+            rows = query('SELECT image_bytes,metadata FROM match_image WHERE image_hash=%s', (images[product],))
+            if not rows:
+                raise ValueError('复核图片不存在')
+            if rows[0]['metadata'].get('dates') != [str(day) for day in dates] or rows[0]['metadata'].get('product') != product:
+                raise ValueError('复核图片的日期或图层与任务不一致')
+            image_rows[(side, product)] = rows[0]
     cached = query('SELECT validated_review FROM match_image_review WHERE cache_key=%s',(cache_key,))
     if cached and cached[0]['validated_review']:
         return cached[0]['validated_review'], cache_key, True
@@ -62,14 +71,12 @@ days必须按相对日覆盖每一天。分数越高代表越相似，不能输�
     content = [{'type':'text','text':instructions+'\n任务信息：'+json.dumps(metadata,ensure_ascii=False)}]
     for side,images in [('当前',current_images),('历史',historical_images)]:
         for product in PRODUCTS:
-            rows = query('SELECT image_bytes FROM match_image WHERE image_hash=%s',(images[product],))
-            if not rows:
-                raise ValueError('复核图片不存在')
-            encoded = base64.b64encode(bytes(rows[0]['image_bytes'])).decode()
+            encoded = base64.b64encode(bytes(image_rows[(side, product)]['image_bytes'])).decode()
             content.extend([{'type':'text','text':f'{side} / {product}'},
                             {'type':'image_url','image_url':{'url':'data:image/png;base64,'+encoded}}])
     payload = {'model':settings.model_name,'messages':[{'role':'user','content':content}],
-               'temperature':0,'max_tokens':settings.model_max_tokens,'enable_thinking':False}
+               'temperature':0,'max_tokens':settings.model_max_tokens,'enable_thinking':False,
+               'response_format':{'type':'json_object'}}
     # HTTP and malformed-model failures are handled by the task's one retry policy.
     with httpx.Client(timeout=settings.model_timeout_seconds) as client:
         response = client.post(settings.model_base_url+'/chat/completions',json=payload,

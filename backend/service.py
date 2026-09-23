@@ -43,7 +43,7 @@ def create_task(batch,start,end,should_review=True):
     try:
         evidence = {'task_id':task_id,'warning':WARNING,'stage':'等待执行','progress':0,'dates':dates,
                     'forecast_start_time':batch,'should_review':should_review,'candidates':[],
-                    'model_name':settings.model_name,'rule_version':'LABEL_RETRIEVAL_V2.1_FIXED2025',
+                    'model_name':settings.model_name,'rule_version':'LABEL_RETRIEVAL_V2.2_PAST_BASELINE',
                     'created_at':datetime.now(ZoneInfo('Asia/Shanghai')),'review_failures':[],
                     'final_weights':{'pollutant':.6,'meteorology':.2,'image':.2}}
         from backend.database import connection
@@ -72,8 +72,10 @@ def persist_candidates(task_id,candidates):
 
 def render_images(store,dates):
     metadata = {'dates':[str(day) for day in dates],'render_version':RENDER_VERSION,'source_hash':store.source_hash}
-    saved = query('SELECT image_hash,metadata FROM match_image WHERE metadata @> %s',(as_json(metadata),))
-    images = {row['metadata']['product']:row['image_hash'] for row in saved}
+    saved = query("SELECT image_hash,metadata FROM match_image WHERE metadata @> %s AND metadata->'dates' = %s",
+                  (as_json(metadata), as_json(metadata['dates'])))
+    images = {row['metadata']['product']:row['image_hash'] for row in saved
+              if row['metadata'].get('dates') == metadata['dates']}
     if len(images) == 4:
         return images
     return {product:save_image(png,{**metadata,'product':product}) for product,png in store.render(dates).items()}
@@ -104,6 +106,7 @@ def run_task(task_id,batch,dates,should_review,evidence):
                         source_hash=store.source_hash,
                         input_hash=sha256(json.dumps({'current':current_values.tolist(),'observations':{str(k):v.tolist() for k,v in observations.items()},
                                                      'weather':{str(k):v.tolist() for k,v in weather.items()}},sort_keys=True).encode()).hexdigest())
+        evidence['current_circulation'] = store.classify_circulation(dates)
         for candidate in candidates:
             candidate.pop('current_features')
             candidate.pop('current_labels')

@@ -191,7 +191,10 @@ def calibrate_changes(observations, first_date):
 
 
 def rank_windows(current, current_weather, current_labels, observations, weather, weather_labels, start_date, allowed_field_dates, task_date):
-    """Fixed-2025 dataset mode: shared full-library baseline, explicitly not historical replay."""
+    """Use only dates before the current window/task for calibration and candidates."""
+    cutoff = min(start_date, task_date)
+    observations = {day: values for day, values in observations.items() if day < cutoff}
+    weather = {day: values for day, values in weather.items() if day < cutoff}
     if len(observations) < 2 or len(weather) < 2:
         raise ValueError('历史样本不足，无法建立标准差基准')
     pollutant_deviations = np.std(list(observations.values()), axis=0, ddof=1)
@@ -201,7 +204,7 @@ def rank_windows(current, current_weather, current_labels, observations, weather
     length = len(current)
     for historical_start in sorted(observations):
         historical_dates = [historical_start+timedelta(days=offset) for offset in range(length)]
-        if historical_dates[-1] >= min(start_date,task_date) or historical_start < date(2023,1,1):
+        if historical_dates[-1] >= min(start_date,task_date):
             continue
         if any(day not in observations for day in historical_dates):
             skipped['missing_pollutants'] += 1
@@ -234,7 +237,7 @@ def rank_windows(current, current_weather, current_labels, observations, weather
     selected.sort(key=lambda c:(-c['fine_score'],-c['coarse_score'],-c['valid_ratio'],c['history_start_date']))
     for index,candidate in enumerate(selected,1):
         candidate['fine_rank'] = index
-    baseline = {'mode':'FIXED_2025_TEST','pollutant_sample_count':len(observations),'weather_sample_count':len(weather),
+    baseline = {'mode':'PAST_DATED_BASELINE','cutoff_date':str(cutoff),'pollutant_sample_count':len(observations),'weather_sample_count':len(weather),
                 'pollutant_standard_deviations':pollutant_deviations.tolist(),
                 'weather_standard_deviations':weather_deviations.tolist(),
                 'change_thresholds':change_thresholds.tolist(),'change_baseline':change_metadata,

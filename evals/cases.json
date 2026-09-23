@@ -1,0 +1,15 @@
+{
+  "version": "business-routing-v1",
+  "cases": [
+    {"id":"risk", "question":"明天污染风险如何？", "specialists":["pollution"], "has_task":true},
+    {"id":"timeline", "question":"这次过程什么时候达到峰值？", "specialists":["pollution"], "has_task":true},
+    {"id":"weather", "question":"本次气象扩散条件是什么原因？", "specialists":["meteorology"], "has_task":true},
+    {"id":"analogue", "question":"历史相似过程有哪些？", "specialists":["matching"], "has_task":true},
+    {"id":"bias", "question":"历史偏差有什么调整建议？", "specialists":["matching"], "has_task":true},
+    {"id":"weather-knowledge", "question":"什么是逆温？", "specialists":["meteorology"], "has_task":false},
+    {"id":"pollution-knowledge", "question":"什么是MDA8？", "specialists":["pollution"], "has_task":false},
+    {"id":"team", "question":"明天哪些区域有污染风险，天气如何，历史偏差有什么参考？", "specialists":["pollution","meteorology","matching"], "has_task":true},
+    {"id":"missing-task", "question":"明天污染风险如何？", "specialists":["pollution"], "has_task":false},
+    {"id":"unknown", "question":"帮我写一首诗", "specialists":[], "has_task":false}
+  ]
+}

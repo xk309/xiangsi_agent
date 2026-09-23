@@ -1,11 +1,22 @@
 import unittest
 import numpy as np
 
-from backend.matching import compare_pollutants, evaluate_concentration, compare_weather, select_nonoverlapping, validate_window, finalize_candidates
+from backend.matching import compare_pollutants, evaluate_concentration, compare_weather, select_nonoverlapping, validate_window, finalize_candidates, rank_windows
 from datetime import date
 
 
 class MatchingTests(unittest.TestCase):
+    def test_accumulated_old_cases_and_future_values_do_not_leak_into_baseline(self):
+        days = [date(2019, 1, 1), date(2020, 1, 1), date(2026, 1, 1)]
+        observations = {day: np.full((9, 4), value) for day, value in zip(days, [10., 20., 1e9])}
+        weather = {day: np.full((9, 6), value) for day, value in zip(days, [1., 2., 1e9])}
+        labels = ['正常', '高湿', '弱风', '北', '正常', '中']
+        result, baseline = rank_windows(np.full((1, 9, 4), 20.), np.full((1, 9, 6), 2.), [labels],
+            observations, weather, {day: labels for day in days}, date(2025, 1, 1), set(days), date(2025, 1, 1))
+        self.assertEqual({item['history_start_date'] for item in result}, set(days[:2]))
+        self.assertEqual(baseline['pollutant_sample_count'], 2)
+        self.assertAlmostEqual(baseline['pollutant_standard_deviations'][0][0], 10 / np.sqrt(2))
+
     def test_document_three_day_candidate_b(self):
         # V2.1 的108维独立算例，不能用中心格代替九格。
         center = np.array([[40, 70, 40, 100], [80, 130, 90, 180], [50, 90, 50, 120]])

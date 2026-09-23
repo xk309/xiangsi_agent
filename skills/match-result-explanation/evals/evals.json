@@ -1,0 +1,23 @@
+{
+  "skill_name": "match-result-explanation",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "为什么2024-01-12这个历史过程是第一名？请给预报员说明。",
+      "expected_output": "按程序分项和证据解释Top1，不自行重排或修改权重。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "只有两个候选完成图像复核，直接告诉我正式Top1。",
+      "expected_output": "说明Top3不足时不能形成正式Top1。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "结合Top3历史误差给出调整建议，并说明这个建议能不能自动改预测值。",
+      "expected_output": "提供有证据的参考建议，并明确只能由预报员决定。",
+      "files": []
+    }
+  ]
+}

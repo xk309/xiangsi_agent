@@ -1,17 +1,25 @@
 from contextlib import asynccontextmanager
 from datetime import date,datetime
 from pathlib import Path
+from time import perf_counter
 from uuid import UUID
 import logging
 from fastapi import FastAPI,HTTPException,Response,Request
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel
+from backend.agent.contracts import AgentRequest
+from backend.agent.runtime import agent_runtime
+from backend.agent.harness import agent_harness
 from backend.config import settings,ROOT
 from backend.database import query,migrate,execute
 from backend.data_source import list_batches
 from backend.service import create_task,WARNING,executor
 
 logger = logging.getLogger(__name__)
+REQUEST_COUNT = Counter('xiangsi_http_requests_total', 'HTTP请求数量', ['method', 'route', 'status'])
+REQUEST_DURATION = Histogram('xiangsi_http_request_duration_seconds', 'HTTP请求耗时', ['method', 'route'])
 
 
 @asynccontextmanager
@@ -25,11 +33,26 @@ async def lifespan(app):
         execute("UPDATE similarity_match_task SET status='FAILED' WHERE status='RUNNING' AND task_id IN (SELECT task_id FROM match_task_evidence)")
     except Exception:
         logger.exception('Database startup verification failed')
+    await agent_runtime.start()
+    agent_harness.start()
     yield
+    await agent_runtime.stop()
+    await agent_harness.stop()
     executor.shutdown(wait=True)
 
 
 app = FastAPI(title='上海污染过程相似度匹配',version='0.1.0',lifespan=lifespan)
+
+
+@app.middleware('http')
+async def collect_metrics(request:Request,call_next):
+    started_at = perf_counter()
+    response = await call_next(request)
+    route = request.scope.get('route')
+    route_name = getattr(route, 'path', request.url.path)
+    REQUEST_COUNT.labels(request.method, route_name, response.status_code).inc()
+    REQUEST_DURATION.labels(request.method, route_name).observe(perf_counter()-started_at)
+    return response
 
 
 @app.middleware('http')
@@ -51,7 +74,59 @@ def health():
         pass
     return {'database_ready':database_ready,'weather_ready':settings.weather_file.is_file(),
             'model_configured':bool(settings.model_api_key),'model_name':settings.model_name,
+            'agent_ready':agent_runtime.graph is not None,'mcp_server_url':settings.mcp_server_url,
             'warning':WARNING}
+
+
+@app.get('/metrics',include_in_schema=False)
+def metrics():
+    return Response(generate_latest(),media_type=CONTENT_TYPE_LATEST)
+
+
+@app.post('/api/agent/stream')
+async def stream_agent(request:AgentRequest):
+    return StreamingResponse(
+        agent_runtime.stream(request),
+        media_type='text/event-stream',
+        headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'},
+    )
+
+
+@app.post('/api/agent/runs', status_code=202)
+async def create_agent_run(request: AgentRequest):
+    try:
+        run = await agent_harness.create(request)
+    except ValueError as error:
+        raise HTTPException(429, str(error)) from error
+    return {**run, 'events_url': f"/api/agent/runs/{run['run_id']}/events"}
+
+
+@app.get('/api/agent/runs/{run_id}')
+async def get_agent_run(run_id: UUID):
+    agent_harness.start()
+    try:
+        return agent_harness.store.get(str(run_id))
+    except KeyError as error:
+        raise HTTPException(404, '分析不存在') from error
+
+
+@app.get('/api/agent/runs/{run_id}/events')
+async def get_agent_events(run_id: UUID, request: Request, after: int = 0):
+    await get_agent_run(run_id)
+    try:
+        after = int(request.headers.get('last-event-id', after))
+        if after < 0:
+            raise ValueError()
+    except ValueError as error:
+        raise HTTPException(422, '事件序号必须为非负整数') from error
+    return StreamingResponse(agent_harness.stream_events(str(run_id), after), media_type='text/event-stream',
+                             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+@app.post('/api/agent/runs/{run_id}/cancel')
+async def cancel_agent_run(run_id: UUID):
+    await get_agent_run(run_id)
+    return await agent_harness.cancel(str(run_id))
 
 
 @app.get('/api/batches')

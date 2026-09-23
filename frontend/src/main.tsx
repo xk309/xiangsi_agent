@@ -23,6 +23,7 @@ import { statusNames, formatScore } from "./visualizations";
 import { api } from "./api";
 import { CandidateDetails } from "./CandidateDetails";
 import { useTaskController } from "./useTaskController";
+import { AgentPanel } from "./AgentPanel";
 
 function App() {
   const [health, setHealth] = useState<Health>();
@@ -610,6 +611,7 @@ function App() {
               )}
             </>
           )}
+          <AgentPanel key={task?.task_id || "knowledge"} taskId={task?.task_id} />
           <footer>
             <span>上海污染过程相似度匹配</span>
             <span>固定九宫格 · 联合检索 · 证据可追溯</span>

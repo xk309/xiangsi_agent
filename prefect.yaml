@@ -1,0 +1,17 @@
+name: xiangsi-agent-data-ingestion
+prefect-version: null
+build: null
+push: null
+pull: null
+deployments:
+  - name: daily-incremental-ingestion
+    entrypoint: workflows/ingestion.py:run_incremental_ingestion
+    parameters:
+      after_batch_id: null
+    work_pool:
+      name: data-ingestion
+      work_queue_name: default
+      job_variables: {}
+    schedule:
+      cron: "0 2 * * *"
+      timezone: Asia/Shanghai
